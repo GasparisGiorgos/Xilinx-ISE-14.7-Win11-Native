@@ -54,6 +54,13 @@ Launch `Xilinx_Win11_Deployer.exe` (it will automatically request Administrator 
    * **Option `[3]` (Diagnostic Audit & Repair)**: Scans your installation to verify all DLLs, registry keys, and shortcuts are intact, repairing any broken components.
    * **Option `[4]` (Transactional Rollback)**: Completely reverts all patches, restores backed-up original DLLs, clears shortcuts, and removes added registry variables.
 
+### Initial Launch & Performance Notes
+
+* **Device Database Indexing**: On the first launch after a system restart, Project Navigator reads the FPGA device family definitions (Spartan-6, Virtex, 7-series) and timing models into memory.
+* During this initial disk I/O phase, Windows Desktop Window Manager (DWM) may temporarily flag the window title as *"Not Responding"* before the Qt UI event loop begins message processing. Allow 10–20 seconds for the initial catalog load to complete.
+* Once loaded into the OS memory cache, all subsequent launches open in 1–2 seconds.
+* **Storage / Defender Tip**: Adding a Windows Security folder exclusion for your Xilinx directory (`C:\Xilinx` or your custom drive) prevents antivirus real-time inspection overhead across the thousands of internal device database files.
+
 ---
 
 ## Building from Source
