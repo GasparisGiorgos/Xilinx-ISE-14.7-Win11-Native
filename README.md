@@ -46,7 +46,8 @@ Launch `Xilinx_Win11_Deployer.exe` (it will automatically request Administrator 
    * Automatically replaces 32-bit and 64-bit `libPortability.dll` with the native NOSH builds across ISE, Common Tools, and PlanAhead.
    * Optimizes the Windows network provider order safely.
    * Sets all system environment variables and PATH entries.
-   * Generates 64-bit shortcuts on your Desktop for Project Navigator, PlanAhead, and iMPACT.
+   * Opens `installer/licensing` for your `.lic` license file (or press Enter to skip and configure later).
+   * Generates 64-bit shortcuts on your Desktop for Project Navigator, PlanAhead, iMPACT, and License Manager.
 
 3. **Optional Management Options**:
    * **Option `[3]` (Diagnostic Audit & Repair)**: Scans your installation to verify all DLLs, registry keys, and shortcuts are intact, repairing any broken components.
