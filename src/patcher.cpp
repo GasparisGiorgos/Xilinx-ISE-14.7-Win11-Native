@@ -583,6 +583,26 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
         RegCloseKey(hCompatKey);
     }
 
+    // 6.1 Permanently disable obsolete 2013 XilinxNotify update check prompts
+    HKEY hUpdateKey;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\Common\\Update", 0, NULL,
+                        REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL, &hUpdateKey, NULL) == ERROR_SUCCESS) {
+        DWORD zero = 0;
+        RegSetValueExW(hUpdateKey, L"AutoCheck", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
+        RegSetValueExW(hUpdateKey, L"CheckFrequency", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
+        RegSetValueExW(hUpdateKey, L"NotificationOption", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
+        RegSetValueExW(hUpdateKey, L"Enable", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
+        RegCloseKey(hUpdateKey);
+    }
+    HKEY hPrefKey;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\ISE\\14.7\\Project Navigator\\Preferences", 0, NULL,
+                        REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL, &hPrefKey, NULL) == ERROR_SUCCESS) {
+        DWORD zero = 0;
+        RegSetValueExW(hPrefKey, L"AutoUpdateCheck", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
+        RegCloseKey(hPrefKey);
+    }
+    results.push_back({"XilinxNotify Deactivation", "Disabled obsolete 2013 update check servers", true});
+
     // 7. Provision License
     bool licOk = ProvisionLicense();
     results.push_back({"License Auto-Provisioning", licOk ? "Configured XILINXD_LICENSE_FILE (.lic)" : "User prompt required (Option 2 will assist)", licOk});
@@ -698,6 +718,27 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
     } else {
         bool licFound = AutoInstallLicense();
         report.push_back({"XILINXD_LICENSE_FILE", licFound ? "REPAIRED" : "WARNING", licFound ? "Auto-detected and imported license" : "No .lic found in search paths", "HKCU\\Environment\\XILINXD_LICENSE_FILE", licFound});
+    }
+
+    // 9. Check XilinxNotify AutoUpdate Deactivation
+    HKEY hAuditUpdate;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\Common\\Update", 0, KEY_READ, &hAuditUpdate) == ERROR_SUCCESS) {
+        DWORD autoCheck = 1;
+        DWORD size = sizeof(autoCheck);
+        if (RegQueryValueExW(hAuditUpdate, L"AutoCheck", NULL, NULL, (LPBYTE)&autoCheck, &size) == ERROR_SUCCESS && autoCheck == 0) {
+            report.push_back({"XilinxNotify Deactivation", "HEALTHY", "Disabled obsolete update check servers", "HKCU\\Software\\Xilinx\\Common\\Update", true});
+        } else {
+            HKEY hSet;
+            if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\Common\\Update", 0, KEY_SET_VALUE, &hSet) == ERROR_SUCCESS) {
+                DWORD zero = 0;
+                RegSetValueExW(hSet, L"AutoCheck", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
+                RegSetValueExW(hSet, L"CheckFrequency", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
+                RegSetValueExW(hSet, L"Enable", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
+                RegCloseKey(hSet);
+            }
+            report.push_back({"XilinxNotify Deactivation", "REPAIRED", "Disabled obsolete update check servers", "HKCU\\Software\\Xilinx\\Common\\Update", true});
+        }
+        RegCloseKey(hAuditUpdate);
     }
 
     return report;
