@@ -66,6 +66,12 @@ inline void ClearScreen() {
     std::cout << "\033[2J\033[1;1H";
 }
 
+inline fs::path GetApplicationDirectory() {
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(NULL, exePath, MAX_PATH);
+    return fs::path(exePath).parent_path();
+}
+
 // Disk space check (returns free gigabytes on target drive)
 inline double GetDriveFreeSpaceGB(const fs::path& p) {
     std::wstring rootStr = p.root_path().wstring();

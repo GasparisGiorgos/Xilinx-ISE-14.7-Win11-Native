@@ -21,8 +21,9 @@
 
 static bool SafeCopyAndOverwrite(const fs::path& src, const fs::path& dest) {
     if (!fs::exists(src)) return false;
-    SetFileAttributesW(dest.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
     std::error_code ec;
+    fs::create_directories(dest.parent_path(), ec);
+    SetFileAttributesW(dest.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
     fs::remove(dest, ec);
     BOOL ok = CopyFileW(src.wstring().c_str(), dest.wstring().c_str(), FALSE);
     return (ok != 0);
@@ -178,37 +179,22 @@ bool Patcher::AutoInstallLicense() {
     
     fs::path userProfile(profilePath);
     fs::path targetLic = userProfile / ".Xilinx" / "Xilinx.lic";
-    fs::create_directories(userProfile / ".Xilinx");
+    std::error_code ec;
+    fs::create_directories(userProfile / ".Xilinx", ec);
 
-    fs::path licensingDir = fs::current_path() / "installer" / "licensing";
-    fs::create_directories(licensingDir);
-    fs::create_directories(fs::current_path() / "installer" / "extracted");
+    fs::path licensingDir = GetApplicationDirectory() / "installer" / "licensing";
+    fs::create_directories(licensingDir, ec);
+    fs::create_directories(GetApplicationDirectory() / "installer" / "extracted", ec);
 
-    if (fs::exists(targetLic) && fs::file_size(targetLic) > 0) {
-        SetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", targetLic.wstring());
-        SetEnvironmentVariablePermanent(L"LM_LICENSE_FILE", targetLic.wstring());
-        return true;
-    }
-
-    std::vector<fs::path> searchDirs = {
-        licensingDir,
-        userProfile / "Desktop",
-        userProfile / "Downloads",
-        userProfile / "Documents",
-        fs::current_path() / "installer",
-        fs::current_path()
-    };
-
-    for (const auto& dir : searchDirs) {
-        if (fs::exists(dir)) {
-            for (const auto& entry : fs::directory_iterator(dir)) {
-                if (entry.is_regular_file() && entry.path().extension() == ".lic" && fs::file_size(entry.path()) > 0) {
-                    if (SafeCopyAndOverwrite(entry.path(), targetLic)) {
-                        StateManager::Instance().RecordAction(ActionType::CREATE_FILE, targetLic.string());
-                        SetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", targetLic.wstring());
-                        SetEnvironmentVariablePermanent(L"LM_LICENSE_FILE", targetLic.wstring());
-                        return true;
-                    }
+    // Strictly search ONLY installer/licensing
+    if (fs::exists(licensingDir)) {
+        for (const auto& entry : fs::directory_iterator(licensingDir)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".lic" && fs::file_size(entry.path()) > 0) {
+                if (SafeCopyAndOverwrite(entry.path(), targetLic)) {
+                    StateManager::Instance().RecordAction(ActionType::CREATE_FILE, targetLic.string());
+                    SetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", targetLic.wstring());
+                    SetEnvironmentVariablePermanent(L"LM_LICENSE_FILE", targetLic.wstring());
+                    return true;
                 }
             }
         }
@@ -222,29 +208,26 @@ bool Patcher::ProvisionLicense() {
 
     fs::path userProfile(profilePath);
     fs::path xilinxDir = userProfile / ".Xilinx";
-    fs::create_directories(xilinxDir);
+    std::error_code ec;
+    fs::create_directories(xilinxDir, ec);
     fs::path targetLic = xilinxDir / "Xilinx.lic";
 
-    fs::path licensingDir = fs::current_path() / "installer" / "licensing";
-    fs::create_directories(licensingDir);
-    fs::create_directories(fs::current_path() / "installer" / "extracted");
+    fs::path licensingDir = GetApplicationDirectory() / "installer" / "licensing";
+    fs::create_directories(licensingDir, ec);
+    fs::create_directories(GetApplicationDirectory() / "installer" / "extracted", ec);
 
-    bool hasValidLic = false;
-    for (const auto& entry : fs::directory_iterator(xilinxDir)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".lic" && fs::file_size(entry.path()) > 0) {
-            targetLic = entry.path();
-            hasValidLic = true;
-            break;
+    // Strictly check if a license file is present in installer/licensing
+    bool hasLicInFolder = false;
+    if (fs::exists(licensingDir)) {
+        for (const auto& entry : fs::directory_iterator(licensingDir)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".lic" && fs::file_size(entry.path()) > 0) {
+                hasLicInFolder = true;
+                break;
+            }
         }
     }
 
-    if (!hasValidLic) {
-        if (AutoInstallLicense()) {
-            hasValidLic = true;
-        }
-    }
-
-    if (!hasValidLic) {
+    if (!hasLicInFolder) {
         std::cout << "\n " << Colors::BOLD << Colors::WHITE
                   << "+-------------------------------------------------------------------------+\n"
                   << " |                     XILINX LICENSE CONFIGURATION                        |\n"
@@ -260,18 +243,22 @@ bool Patcher::ProvisionLicense() {
         std::cout << " " << Colors::YELLOW << "Press Enter once you have placed your .lic file, or press Enter to skip..." << Colors::RESET;
         std::string dummy;
         std::getline(std::cin, dummy);
-
-        if (AutoInstallLicense()) {
-            hasValidLic = true;
-        }
     }
 
-    if (hasValidLic) {
-        SetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", targetLic.wstring());
-        SetEnvironmentVariablePermanent(L"LM_LICENSE_FILE", targetLic.wstring());
+    bool installed = AutoInstallLicense();
+    if (installed) {
+        std::cout << "  " << Colors::GREEN << "[OK]   " << Colors::BOLD << "Xilinx License Configured" << Colors::RESET << " - "
+                  << Colors::DIM << "Imported from installer\\licensing into .Xilinx" << Colors::RESET << "\n";
         return true;
     } else {
-        std::cout << "\n " << Colors::CYAN << "[NOTE] No license file provided." << Colors::WHITE << "\n"
+        // If no file was placed in installer/licensing, check if an existing one is in .Xilinx
+        if (fs::exists(targetLic) && fs::file_size(targetLic) > 0) {
+            SetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", targetLic.wstring());
+            SetEnvironmentVariablePermanent(L"LM_LICENSE_FILE", targetLic.wstring());
+            return true;
+        }
+
+        std::cout << "\n " << Colors::CYAN << "[NOTE] No license file provided in installer\\licensing." << Colors::WHITE << "\n"
                   << "        You can configure your license anytime after installation using\n"
                   << "        the 'Xilinx License Manager' shortcut on your Desktop." << Colors::RESET << "\n\n";
         return true;
@@ -719,13 +706,39 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
         report.push_back({"XILINX Env Variable", "REPAIRED", "Set to ISE directory", "HKCU\\Environment\\XILINX", true});
     }
 
-    // 8. Check License Environment Variable
+    // 8. Check Physical License File on Disk & Environment Variable
     std::wstring licEnv;
-    if (GetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", licEnv) && !licEnv.empty()) {
-        report.push_back({"XILINXD_LICENSE_FILE", "HEALTHY", "License key active: " + std::string(licEnv.begin(), licEnv.end()), "HKCU\\Environment\\XILINXD_LICENSE_FILE", true});
+    bool hasReg = GetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", licEnv) && !licEnv.empty();
+    fs::path targetLic = fs::path(profilePath) / ".Xilinx" / "Xilinx.lic";
+    fs::path licFilePath = (hasReg && !licEnv.empty()) ? fs::path(licEnv) : targetLic;
+
+    if (fs::exists(licFilePath) && fs::file_size(licFilePath) > 0) {
+        if (!hasReg || licEnv != licFilePath.wstring()) {
+            SetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", licFilePath.wstring());
+            SetEnvironmentVariablePermanent(L"LM_LICENSE_FILE", licFilePath.wstring());
+            report.push_back({"License File on Disk", "REPAIRED", "Bound existing license to registry", licFilePath.string(), true});
+        } else {
+            report.push_back({"License File on Disk", "HEALTHY", "Verified active .lic (" + std::to_string(fs::file_size(licFilePath)) + " bytes)", licFilePath.string(), true});
+        }
     } else {
-        bool licFound = AutoInstallLicense();
-        report.push_back({"XILINXD_LICENSE_FILE", licFound ? "REPAIRED" : "WARNING", licFound ? "Auto-detected and imported license" : "No .lic found in search paths", "HKCU\\Environment\\XILINXD_LICENSE_FILE", licFound});
+        bool restored = false;
+        fs::path licensingDir = GetApplicationDirectory() / "installer" / "licensing";
+        if (fs::exists(licensingDir)) {
+            for (const auto& entry : fs::directory_iterator(licensingDir)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".lic" && fs::file_size(entry.path()) > 0) {
+                    if (SafeCopyAndOverwrite(entry.path(), targetLic)) {
+                        SetEnvironmentVariablePermanent(L"XILINXD_LICENSE_FILE", targetLic.wstring());
+                        SetEnvironmentVariablePermanent(L"LM_LICENSE_FILE", targetLic.wstring());
+                        restored = true;
+                        report.push_back({"License File on Disk", "REPAIRED", "Restored missing .lic from installer\\licensing", targetLic.string(), true});
+                        break;
+                    }
+                }
+            }
+        }
+        if (!restored) {
+            report.push_back({"License File on Disk", "MISSING", "No .lic in .Xilinx or installer\\licensing", targetLic.string(), false});
+        }
     }
 
     // 9. Check XilinxNotify AutoUpdate Deactivation
