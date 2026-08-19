@@ -40,7 +40,8 @@ Launch `Xilinx_Win11_Deployer.exe` (it will automatically request Administrator 
      * Set the installation directory (e.g. `C:\Xilinx` or `W:\Xilinx` - ensure no spaces in the path).
      * **Uncheck "Install Cable Drivers"** (prevents the 91% installer freeze; drivers are configured in Step 2).
      * **Uncheck "Install WinPcap"** (WinPcap is obsolete on Windows 11 and causes driver install errors).
-     * Finish the setup wizard and return to the deployer terminal.
+     * Finish the setup wizard. *(Note: If the Xilinx License Configuration Manager opens automatically when setup finishes, you can either load your `.lic` license file directly there or close it and drop it into `installer/licensing` when prompted during Step 2).*
+     * Return to the deployer terminal.
 
 2. **Select Option `[2]` (Apply All Patches & Create Shortcuts)**:
    * Automatically replaces 32-bit and 64-bit `libPortability.dll` with the native NOSH builds across ISE, Common Tools, and PlanAhead.

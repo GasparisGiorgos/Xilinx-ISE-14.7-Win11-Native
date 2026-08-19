@@ -18,6 +18,7 @@
 #include "patcher.hpp"
 #include "extractor.hpp"
 #include "state_manager.hpp"
+#include "stub_bytes.hpp"
 
 static bool SafeCopyAndOverwrite(const fs::path& src, const fs::path& dest) {
     if (!fs::exists(src)) return false;
@@ -312,7 +313,7 @@ static bool CreateShortcutWithArgs(const fs::path& shortcutPath, const fs::path&
         if (!workDir.empty()) psl->SetWorkingDirectory(wWork.c_str());
         if (!iconPath.empty()) psl->SetIconLocation(wIcon.c_str(), 0);
         if (!description.empty()) psl->SetDescription(description.c_str());
-        psl->SetShowCmd(SW_SHOWMINNOACTIVE);
+        psl->SetShowCmd(SW_SHOWNORMAL);
 
         hr = psl->QueryInterface(IID_IPersistFile, (LPVOID*)&ppf);
         if (SUCCEEDED(hr)) {
@@ -607,7 +608,7 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
         RegCloseKey(hCompatKey);
     }
 
-    // 6.1 Permanently disable obsolete 2013 XilinxNotify update check prompts
+    // 6.1 Permanently disable obsolete 2013 XilinxNotify update check prompts & replace binaries with silent no-op stubs
     HKEY hUpdateKey;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\Common\\Update", 0, NULL,
                         REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL, &hUpdateKey, NULL) == ERROR_SUCCESS) {
@@ -625,7 +626,31 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
         RegSetValueExW(hPrefKey, L"AutoUpdateCheck", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
         RegCloseKey(hPrefKey);
     }
-    results.push_back({"XilinxNotify Deactivation", "Disabled obsolete 2013 update check servers", true});
+
+    std::vector<fs::path> notifyFiles = {
+        commonDir / "bin" / "nt64" / "xilinxnotify.exe",
+        commonDir / "bin" / "nt64" / "_xilinxnotify.exe",
+        commonDir / "bin" / "nt" / "xilinxnotify.exe",
+        commonDir / "bin" / "nt" / "_xilinxnotify.exe"
+    };
+
+    for (const auto& nf : notifyFiles) {
+        if (fs::exists(nf) && fs::file_size(nf) != sizeof(kSilentNotifyStub)) {
+            fs::path nfBackup = nf.string() + ".orig";
+            if (!fs::exists(nfBackup)) {
+                SafeCopyAndOverwrite(nf, nfBackup);
+                StateManager::Instance().RecordAction(ActionType::BACKUP_FILE, nf.string(), nfBackup.string());
+            }
+            SetFileAttributesW(nf.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+            std::ofstream out(nf, std::ios::binary | std::ios::trunc);
+            if (out.is_open()) {
+                out.write((const char*)kSilentNotifyStub, sizeof(kSilentNotifyStub));
+                out.close();
+            }
+        }
+    }
+
+    results.push_back({"XilinxNotify Deactivation", "Disabled obsolete update check servers & replaced with silent stub", true});
 
     // 7. Provision License
     bool licOk = ProvisionLicense();
@@ -789,13 +814,32 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
         }
     }
 
-    // 9. Check XilinxNotify AutoUpdate Deactivation
+    // 9. Check XilinxNotify AutoUpdate Deactivation & Silent Stub Binaries
+    bool stubRepaired = false;
+    std::vector<fs::path> notifyFiles = {
+        commonDir / "bin" / "nt64" / "xilinxnotify.exe",
+        commonDir / "bin" / "nt64" / "_xilinxnotify.exe",
+        commonDir / "bin" / "nt" / "xilinxnotify.exe",
+        commonDir / "bin" / "nt" / "_xilinxnotify.exe"
+    };
+    for (const auto& nf : notifyFiles) {
+        if (fs::exists(nf) && fs::file_size(nf) != sizeof(kSilentNotifyStub)) {
+            SetFileAttributesW(nf.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+            std::ofstream out(nf, std::ios::binary | std::ios::trunc);
+            if (out.is_open()) {
+                out.write((const char*)kSilentNotifyStub, sizeof(kSilentNotifyStub));
+                out.close();
+                stubRepaired = true;
+            }
+        }
+    }
+
     HKEY hAuditUpdate;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\Common\\Update", 0, KEY_READ, &hAuditUpdate) == ERROR_SUCCESS) {
         DWORD autoCheck = 1;
         DWORD size = sizeof(autoCheck);
-        if (RegQueryValueExW(hAuditUpdate, L"AutoCheck", NULL, NULL, (LPBYTE)&autoCheck, &size) == ERROR_SUCCESS && autoCheck == 0) {
-            report.push_back({"XilinxNotify Deactivation", "HEALTHY", "Disabled obsolete update check servers", "HKCU\\Software\\Xilinx\\Common\\Update", true});
+        if (RegQueryValueExW(hAuditUpdate, L"AutoCheck", NULL, NULL, (LPBYTE)&autoCheck, &size) == ERROR_SUCCESS && autoCheck == 0 && !stubRepaired) {
+            report.push_back({"XilinxNotify Deactivation", "HEALTHY", "Disabled obsolete update servers & stubbed", "HKCU\\Software\\Xilinx\\Common\\Update", true});
         } else {
             HKEY hSet;
             if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\Common\\Update", 0, KEY_SET_VALUE, &hSet) == ERROR_SUCCESS) {
@@ -805,7 +849,7 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
                 RegSetValueExW(hSet, L"Enable", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
                 RegCloseKey(hSet);
             }
-            report.push_back({"XilinxNotify Deactivation", "REPAIRED", "Disabled obsolete update check servers", "HKCU\\Software\\Xilinx\\Common\\Update", true});
+            report.push_back({"XilinxNotify Deactivation", "REPAIRED", "Disabled update servers & installed silent stub", "HKCU\\Software\\Xilinx\\Common\\Update", true});
         }
         RegCloseKey(hAuditUpdate);
     }

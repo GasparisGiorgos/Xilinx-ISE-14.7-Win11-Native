@@ -122,20 +122,22 @@ void ExecuteOption1(const fs::path& projectRoot) {
     Extractor::DisableWebTalkTelemetry(extractedDir);
 
     std::string suggestedDrive = projectRoot.root_name().string();
-    if (suggestedDrive.empty()) suggestedDrive = "C:";
+    std::string pathText = suggestedDrive + "\\Xilinx";
+    std::string pathDisplay = pathText + " (or C:\\Xilinx)";
+    while (pathDisplay.length() < 24) pathDisplay += " ";
 
     std::cout << "\n " << Colors::BOLD << Colors::WHITE
-              << "+-------------------------------------------------------------------------+\n"
-              << " |                 SETUP WIZARD CONFIGURATION DIRECTIVES                   |\n"
-              << " +-------------------------------------------------------------------------+\n"
-              << " | 1. Edition:       " << Colors::CYAN << "Choose your desired Edition" << Colors::WHITE << "                          |\n"
-              << " | 2. Path:          " << Colors::CYAN << (suggestedDrive + "\\Xilinx") << Colors::WHITE << " (or " << Colors::CYAN << "C:\\Xilinx" << Colors::WHITE << ") - " << Colors::YELLOW << "No spaces in path!" << Colors::WHITE << "        |\n"
-              << " | 3. Cable Drivers: " << Colors::RED << Colors::BOLD << "UNCHECK 'Install Cable Drivers'" << Colors::WHITE << "                      |\n"
-              << " |                   " << Colors::DIM << "(Prevents 91% freeze; Step 2 configures drivers)" << Colors::WHITE << "     |\n"
-              << " | 4. WinPcap:       " << Colors::RED << Colors::BOLD << "UNCHECK 'Install WinPcap'" << Colors::WHITE << "                            |\n"
-              << " |                   " << Colors::DIM << "(Obsolete on Win11; prevents installation errors)" << Colors::WHITE << "    |\n"
-              << " | 5. Guard Thread:  " << Colors::GREEN << "ACTIVE (Process Tree Tracking Enabled)" << Colors::WHITE << "               |\n"
-              << " +-------------------------------------------------------------------------+" << Colors::RESET << "\n\n";
+              << "+---------------------------------------------------------------------------+\n"
+              << " |                     SETUP WIZARD CONFIGURATION DIRECTIVES                 |\n"
+              << " +---------------------------------------------------------------------------+\n"
+              << " | 1. Edition:       " << Colors::CYAN << "Choose your desired Edition" << Colors::RESET << Colors::BOLD << Colors::WHITE << "                             |\n"
+              << " | 2. Path:          " << Colors::CYAN << pathDisplay << Colors::RESET << Colors::BOLD << Colors::WHITE << " - " << Colors::YELLOW << "No spaces in path!" << Colors::RESET << Colors::BOLD << Colors::WHITE << "           |\n"
+              << " | 3. Cable Drivers: " << Colors::RED << "UNCHECK 'Install Cable Drivers'" << Colors::RESET << Colors::BOLD << Colors::WHITE << " (Configured in Step 2)  |\n"
+              << " | 4. WinPcap:       " << Colors::RED << "UNCHECK 'Install WinPcap'" << Colors::RESET << Colors::BOLD << Colors::WHITE << " (Obsolete on Windows 11)      |\n"
+              << " | 5. Guard Thread:  " << Colors::GREEN << "ACTIVE (Process tree telemetry tracking enabled)" << Colors::RESET << Colors::BOLD << Colors::WHITE << "        |\n"
+              << " | 6. Licensing:     " << Colors::YELLOW << "If License Manager opens at end, load .lic or close it." << Colors::RESET << Colors::BOLD << Colors::WHITE << " |\n"
+              << " |                   " << Colors::WHITE << "(Step 2 will prompt to drop your license automatically)" << Colors::RESET << Colors::BOLD << Colors::WHITE << " |\n"
+              << " +---------------------------------------------------------------------------+" << Colors::RESET << "\n\n";
 
     std::cout << " " << Colors::GREEN << "Launching Xilinx installer wizard..." << Colors::RESET << "\n";
 
