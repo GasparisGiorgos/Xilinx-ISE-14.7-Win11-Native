@@ -56,10 +56,10 @@ Launch `Xilinx_Win11_Deployer.exe` (it will automatically request Administrator 
 
 ### Initial Launch & Performance Notes
 
-* **Device Database Indexing**: On the first launch after a system restart, Project Navigator reads the FPGA device family definitions (Spartan-6, Virtex, 7-series) and timing models into memory.
-* During this initial disk I/O phase, Windows Desktop Window Manager (DWM) may temporarily flag the window title as *"Not Responding"* before the Qt UI event loop begins message processing. Allow 10–20 seconds for the initial catalog load to complete.
-* Once loaded into the OS memory cache, all subsequent launches open in 1–2 seconds.
-* **Storage / Defender Tip**: Adding a Windows Security folder exclusion for your Xilinx directory (`C:\Xilinx` or your custom drive) prevents antivirus real-time inspection overhead across the thousands of internal device database files.
+* **Library & Architecture Loading**: On the first launch after a system restart, the suite (Project Navigator, PlanAhead, and iMPACT) reads FPGA device family catalogs (Spartan-6, Virtex, 7-series) and timing definitions into memory.
+* During this initial disk I/O phase, the splash screen will stream library status messages in the bottom corner before the main interface appears. Allow 10–20 seconds for the initial catalog load to complete *(or slightly longer if, like me during testing, you are running an entire Windows 11 installation and Xilinx suite off an external SATA SSD via a USB adapter)*.
+* Once buffered into OS memory cache, all subsequent launches open in 1–2 seconds.
+* **Storage / Defender Tip**: Adding a Windows Security folder exclusion for your Xilinx installation directory (`C:\Xilinx` or your custom drive) prevents real-time antivirus inspection across the thousands of internal device database files.
 
 ---
 
