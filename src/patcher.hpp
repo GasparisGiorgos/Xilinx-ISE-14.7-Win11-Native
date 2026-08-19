@@ -48,4 +48,5 @@ public:
     static bool CreateShortcut(const fs::path& shortcutPath, const fs::path& targetPath,
                                 const fs::path& workDir = "", const fs::path& iconPath = "",
                                 const std::wstring& description = L"");
+    static void PurgeAllXilinxEnvironmentAndShortcuts();
 };

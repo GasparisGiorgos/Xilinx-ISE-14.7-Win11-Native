@@ -793,3 +793,129 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
 
     return report;
 }
+
+void Patcher::PurgeAllXilinxEnvironmentAndShortcuts() {
+    // 1. Purge all Xilinx Environment Variables from HKCU\Environment
+    HKEY hUserEnv;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Environment", 0, KEY_SET_VALUE | KEY_READ, &hUserEnv) == ERROR_SUCCESS) {
+        std::vector<std::wstring> envVars = {
+            L"XILINX",
+            L"XILINX_DSP",
+            L"XILINX_EDK",
+            L"XILINX_PLANAHEAD",
+            L"XILINXD_LICENSE_FILE",
+            L"LM_LICENSE_FILE",
+            L"XILINX_VC_CHECK_NOOP",
+            L"NO_XILINX_DATA_LICENSE"
+        };
+        for (const auto& v : envVars) {
+            RegDeleteValueW(hUserEnv, v.c_str());
+            std::cout << "  " << Colors::GREEN << "[PURGE]" << Colors::RESET << " Cleared Environment Variable: " << Colors::BOLD << std::string(v.begin(), v.end()) << Colors::RESET << "\n";
+        }
+
+        // Clean PATH variable in HKCU\Environment
+        wchar_t currentPath[4096];
+        DWORD pathSize = sizeof(currentPath);
+        if (RegQueryValueExW(hUserEnv, L"Path", NULL, NULL, (LPBYTE)currentPath, &pathSize) == ERROR_SUCCESS) {
+            std::wstring pathStr = currentPath;
+            std::vector<std::wstring> cleanTokens;
+            std::wstringstream wss(pathStr);
+            std::wstring token;
+            bool modified = false;
+            while (std::getline(wss, token, L';')) {
+                if (!token.empty()) {
+                    if (token.find(L"Xilinx") != std::string::npos || token.find(L"PlanAhead") != std::string::npos || token.find(L"ISE_DS") != std::string::npos) {
+                        modified = true;
+                    } else {
+                        cleanTokens.push_back(token);
+                    }
+                }
+            }
+            if (modified) {
+                std::wstring newPath = L"";
+                for (const auto& t : cleanTokens) {
+                    newPath += t + L";";
+                }
+                RegSetValueExW(hUserEnv, L"Path", 0, REG_EXPAND_SZ, (const BYTE*)newPath.c_str(), (DWORD)((newPath.length() + 1) * sizeof(wchar_t)));
+                std::cout << "  " << Colors::GREEN << "[PURGE]" << Colors::RESET << " Cleaned Xilinx entries from User PATH variable\n";
+            }
+        }
+        RegCloseKey(hUserEnv);
+    }
+
+    // 2. Broadcast setting change immediately
+    DWORD_PTR dwResult;
+    SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment", SMTO_ABORTIFHUNG, 2000, &dwResult);
+
+    // 3. Purge all Desktop and Start Menu shortcuts across all known paths
+    std::vector<fs::path> searchDirs;
+    wchar_t pBuf[MAX_PATH];
+    if (SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, pBuf) == S_OK) searchDirs.push_back(pBuf);
+    if (SHGetFolderPathW(NULL, CSIDL_COMMON_DESKTOPDIRECTORY, NULL, 0, pBuf) == S_OK) searchDirs.push_back(pBuf);
+    if (SHGetFolderPathW(NULL, CSIDL_PROFILE, NULL, 0, pBuf) == S_OK) {
+        searchDirs.push_back(fs::path(pBuf) / "Desktop");
+        searchDirs.push_back(fs::path(pBuf).root_path() / "Users" / "Public" / "Desktop");
+    }
+    if (SHGetFolderPathW(NULL, CSIDL_PROGRAMS, NULL, 0, pBuf) == S_OK) {
+        searchDirs.push_back(fs::path(pBuf) / "Xilinx Design Tools (Win11)");
+        searchDirs.push_back(fs::path(pBuf) / "Xilinx Design Tools");
+    }
+    if (SHGetFolderPathW(NULL, CSIDL_COMMON_PROGRAMS, NULL, 0, pBuf) == S_OK) {
+        searchDirs.push_back(fs::path(pBuf) / "Xilinx Design Tools (Win11)");
+        searchDirs.push_back(fs::path(pBuf) / "Xilinx Design Tools");
+    }
+
+    std::vector<std::wstring> allShortcuts = {
+        L"Xilinx ISE Project Navigator (64-bit).lnk",
+        L"Xilinx PlanAhead (64-bit).lnk",
+        L"Xilinx iMPACT (64-bit).lnk",
+        L"Xilinx License Manager (64-bit).lnk",
+        L"ISE Project Navigator (64-bit).lnk",
+        L"PlanAhead (64-bit).lnk",
+        L"iMPACT (64-bit).lnk",
+        L"License Configuration Manager (64-bit).lnk",
+        L"Project Navigator.lnk",
+        L"Xilinx Project Navigator.lnk",
+        L"ISE Design Suite 14.7.lnk",
+        L"Xilinx ISE Design Suite 14.7.lnk",
+        L"PlanAhead 14.7.lnk",
+        L"Xilinx PlanAhead 14.7.lnk",
+        L"PlanAhead.lnk",
+        L"Xilinx PlanAhead.lnk",
+        L"iMPACT.lnk",
+        L"Xilinx iMPACT.lnk",
+        L"License Configuration Manager.lnk",
+        L"Xilinx License Configuration Manager.lnk",
+        L"Xilinx License Manager.lnk",
+        L"Xilinx Core Generator.lnk",
+        L"Xilinx FPGA Editor.lnk",
+        L"Xilinx XPower Analyzer.lnk",
+        L"XPower Analyzer.lnk",
+        L"Xilinx Documentation.lnk",
+        L"Documentation.lnk",
+        L"Xilinx ISE Project Navigator (32-bit).lnk",
+        L"ISE Project Navigator (32-bit).lnk"
+    };
+
+    for (const auto& dir : searchDirs) {
+        if (fs::exists(dir)) {
+            for (const auto& lk : allShortcuts) {
+                fs::path p = dir / lk;
+                if (fs::exists(p)) {
+                    std::error_code ec;
+                    SetFileAttributesW(p.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+                    fs::remove(p, ec);
+                    std::cout << "  " << Colors::GREEN << "[PURGE]" << Colors::RESET << " Removed shortcut: " << Colors::DIM << p.string() << Colors::RESET << "\n";
+                }
+            }
+            if (dir.filename() == "Xilinx Design Tools (Win11)" || dir.filename() == "Xilinx Design Tools") {
+                std::error_code ec;
+                fs::remove_all(dir, ec);
+                std::cout << "  " << Colors::GREEN << "[PURGE]" << Colors::RESET << " Removed Start Menu folder: " << Colors::DIM << dir.string() << Colors::RESET << "\n";
+            }
+        }
+    }
+
+    // 4. Restore Network Provider order
+    RestoreNetworkProviders();
+}

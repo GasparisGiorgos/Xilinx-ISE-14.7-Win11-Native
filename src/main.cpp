@@ -317,8 +317,8 @@ void ExecuteOption4_Rollback(const fs::path& projectRoot) {
     fs::path statePath = StateManager::GetDefaultStatePath();
     StateManager::Instance().RollbackAll(statePath);
 
-    // Also restore network provider
-    Patcher::RestoreNetworkProviders();
+    // Unconditionally purge all Xilinx Environment Variables, PATH entries, and shortcuts from the system
+    Patcher::PurgeAllXilinxEnvironmentAndShortcuts();
 
     std::cout << "\n " << Colors::GREEN << Colors::BOLD
               << "===============================================================================\n"
