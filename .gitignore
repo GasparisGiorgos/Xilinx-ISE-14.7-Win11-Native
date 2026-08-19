@@ -10,15 +10,12 @@
 # Installer archive and extraction payload (Excluded due to GitHub 100MB file limit)
 installer/*
 !installer/extracted/
-!installer/extracted/.gitkeep
 !installer/licensing/
-!installer/licensing/.gitkeep
 installer/extracted/*
 !installer/extracted/.gitkeep
 installer/licensing/*
 !installer/licensing/.gitkeep
 *.tar
-extracted/
 
 # Logs and runtime states
 logs/
