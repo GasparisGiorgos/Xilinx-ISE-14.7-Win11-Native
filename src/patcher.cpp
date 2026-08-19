@@ -334,12 +334,16 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
     SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desktopPath);
     fs::path desktop(desktopPath);
 
+    wchar_t commonDesktopPath[MAX_PATH];
+    SHGetFolderPathW(NULL, CSIDL_COMMON_DESKTOPDIRECTORY, NULL, 0, commonDesktopPath);
+    fs::path commonDesktop(commonDesktopPath);
+
     wchar_t programsPath[MAX_PATH];
     SHGetFolderPathW(NULL, CSIDL_PROGRAMS, NULL, 0, programsPath);
     fs::path startMenu = fs::path(programsPath) / "Xilinx Design Tools (Win11)";
     fs::create_directories(startMenu);
 
-    // 1. Remove obsolete unpatched legacy shortcuts created by default Xilinx installer wizard
+    // 1. Remove obsolete unpatched legacy and 32-bit shortcuts from Desktop
     std::vector<std::wstring> legacyShortcuts = {
         L"Project Navigator.lnk",
         L"ISE Design Suite 14.7.lnk",
@@ -347,39 +351,46 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
         L"iMPACT.lnk",
         L"Xilinx ISE Design Suite 14.7.lnk",
         L"Xilinx Core Generator.lnk",
-        L"Xilinx FPGA Editor.lnk"
+        L"Xilinx FPGA Editor.lnk",
+        L"Xilinx ISE Project Navigator (32-bit).lnk",
+        L"ISE Project Navigator (32-bit).lnk"
     };
     for (const auto& lk : legacyShortcuts) {
-        fs::path p = desktop / lk;
-        if (fs::exists(p)) {
-            std::error_code ec;
-            SetFileAttributesW(p.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
-            fs::remove(p, ec);
+        fs::path p1 = desktop / lk;
+        fs::path p2 = commonDesktop / lk;
+        std::error_code ec;
+        if (fs::exists(p1)) {
+            SetFileAttributesW(p1.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+            fs::remove(p1, ec);
+        }
+        if (fs::exists(p2)) {
+            SetFileAttributesW(p2.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+            fs::remove(p2, ec);
         }
     }
 
-    fs::path settings64 = xilinxRoot / "14.7" / "ISE_DS" / "settings64.bat";
-    fs::path settings32 = xilinxRoot / "14.7" / "ISE_DS" / "settings32.bat";
     fs::path ise64Exe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "ise.exe";
     fs::path ise32Exe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt" / "ise.exe";
     fs::path paBat = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "bin" / "planAhead.bat";
     fs::path impactExe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "_impact4.exe";
     fs::path xlcmExe = xilinxRoot / "14.7" / "ISE_DS" / "common" / "bin" / "nt64" / "xlcm.exe";
     fs::path paIco = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "doc" / "images" / "planAhead_logo.ico";
+    fs::path impactIco = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "data" / "images" / "impact.ico";
+    fs::path iseIco = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "data" / "images" / "ise.ico";
+
     fs::path paIconToUse = fs::exists(paIco) ? paIco : ise64Exe;
+    fs::path impactIconToUse = fs::exists(impactIco) ? impactIco : impactExe;
+    fs::path iseIconToUse = fs::exists(iseIco) ? iseIco : ise64Exe;
 
     if (fs::exists(ise64Exe)) {
         CreateShortcut(desktop / "Xilinx ISE Project Navigator (64-bit).lnk",
-                       ise64Exe, ise64Exe.parent_path(), ise64Exe,
+                       ise64Exe, ise64Exe.parent_path(), iseIconToUse,
                        L"Xilinx ISE 14.7 Project Navigator (64-bit)");
         CreateShortcut(startMenu / "ISE Project Navigator (64-bit).lnk",
-                       ise64Exe, ise64Exe.parent_path(), ise64Exe,
+                       ise64Exe, ise64Exe.parent_path(), iseIconToUse,
                        L"Xilinx ISE 14.7 Project Navigator (64-bit)");
     }
     if (fs::exists(ise32Exe)) {
-        CreateShortcut(desktop / "Xilinx ISE Project Navigator (32-bit).lnk",
-                       ise32Exe, ise32Exe.parent_path(), ise32Exe,
-                       L"Xilinx ISE 14.7 Project Navigator (32-bit)");
         CreateShortcut(startMenu / "ISE Project Navigator (32-bit).lnk",
                        ise32Exe, ise32Exe.parent_path(), ise32Exe,
                        L"Xilinx ISE 14.7 Project Navigator (32-bit)");
@@ -394,10 +405,10 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
     }
     if (fs::exists(impactExe)) {
         CreateShortcut(desktop / "Xilinx iMPACT (64-bit).lnk",
-                       impactExe, impactExe.parent_path(), impactExe,
+                       impactExe, impactExe.parent_path(), impactIconToUse,
                        L"Xilinx iMPACT Device Programmer (64-bit)");
         CreateShortcut(startMenu / "iMPACT (64-bit).lnk",
-                       impactExe, impactExe.parent_path(), impactExe,
+                       impactExe, impactExe.parent_path(), impactIconToUse,
                        L"Xilinx iMPACT Device Programmer (64-bit)");
     }
     if (fs::exists(xlcmExe)) {
@@ -453,6 +464,31 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
             SafeCopyAndOverwrite(entry.path(), targetVC90_64 / entry.path().filename());
             SafeCopyAndOverwrite(entry.path(), paDir / "lib" / "win64.o" / entry.path().filename());
         }
+    }
+
+    // 0.2 Ensure high-resolution .ico assets exist for iMPACT and ISE shortcuts
+    fs::path impactIco = iseDir / "data" / "images" / "impact.ico";
+    fs::path iseIco = iseDir / "data" / "images" / "ise.ico";
+    fs::path impactPng = iseDir / "data" / "reports" / "wbtc-imp.png";
+    fs::path isePng = iseDir / "data" / "reports" / "wbtc-pn.png";
+
+    if (!fs::exists(impactIco) && fs::exists(impactPng)) {
+        std::wstring psCmd = L"powershell -NoProfile -ExecutionPolicy Bypass -Command \""
+            L"Add-Type -AssemblyName System.Drawing; "
+            L"$bmp = [System.Drawing.Bitmap]::FromFile('" + impactPng.wstring() + L"'); "
+            L"$hIcon = $bmp.GetHicon(); $icon = [System.Drawing.Icon]::FromHandle($hIcon); "
+            L"$fs = New-Object System.IO.FileStream '" + impactIco.wstring() + L"', ([System.IO.FileMode]::Create); "
+            L"$icon.Save($fs); $fs.Close(); $bmp.Dispose()\"";
+        _wsystem(psCmd.c_str());
+    }
+    if (!fs::exists(iseIco) && fs::exists(isePng)) {
+        std::wstring psCmd = L"powershell -NoProfile -ExecutionPolicy Bypass -Command \""
+            L"Add-Type -AssemblyName System.Drawing; "
+            L"$bmp = [System.Drawing.Bitmap]::FromFile('" + isePng.wstring() + L"'); "
+            L"$hIcon = $bmp.GetHicon(); $icon = [System.Drawing.Icon]::FromHandle($hIcon); "
+            L"$fs = New-Object System.IO.FileStream '" + iseIco.wstring() + L"', ([System.IO.FileMode]::Create); "
+            L"$icon.Save($fs); $fs.Close(); $bmp.Dispose()\"";
+        _wsystem(psCmd.c_str());
     }
 
     // 1. ISE nt64 libPortability
