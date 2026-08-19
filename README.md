@@ -36,9 +36,10 @@ Launch `Xilinx_Win11_Deployer.exe` (it will automatically request Administrator 
 1. **Select Option `[1]` (Extract & Launch Installer)**:
    * The deployer validates the archive, checks for at least 25 GB free disk space, and extracts the installer with a real-time progress bar.
    * When the official setup wizard opens:
-     * Choose **ISE WebPACK (Free)** or your licensed edition.
+     * Select your desired Edition.
      * Set the installation directory (e.g. `C:\Xilinx` or `W:\Xilinx` - ensure no spaces in the path).
      * **Uncheck "Install Cable Drivers"** (prevents the 91% installer freeze; drivers are configured in Step 2).
+     * **Uncheck "Install WinPcap"** (WinPcap is obsolete on Windows 11 and causes driver install errors).
      * Finish the setup wizard and return to the deployer terminal.
 
 2. **Select Option `[2]` (Apply All Patches & Create Shortcuts)**:

@@ -127,11 +127,13 @@ void ExecuteOption1(const fs::path& projectRoot) {
     std::cout << "\n " << Colors::BOLD << Colors::WHITE << "+-------------------------------------------------------------------------+\n"
               << " |                 SETUP WIZARD CONFIGURATION DIRECTIVES                   |\n"
               << " +-------------------------------------------------------------------------+\n"
-              << " | 1. Edition:       " << Colors::CYAN << "ISE WebPACK (Free)" << Colors::WHITE << " or " << Colors::CYAN << "System/Logic Edition" << Colors::WHITE << "               |\n"
+              << " | 1. Edition:       " << Colors::CYAN << "Choose your desired Edition" << Colors::WHITE << "                                      |\n"
               << " | 2. Path:          " << Colors::CYAN << (suggestedDrive + "\\Xilinx") << Colors::WHITE << " (or " << Colors::CYAN << "C:\\Xilinx" << Colors::WHITE << ") - " << Colors::YELLOW << "No spaces in directory path!" << Colors::WHITE << "    |\n"
               << " | 3. Cable Drivers: " << Colors::RED << Colors::BOLD << "UNCHECK 'Install Cable Drivers'" << Colors::WHITE << "                                                        |\n"
               << " |                   " << Colors::DIM << "(Prevents 91% freeze; Step 2 configures drivers cleanly)" << Colors::WHITE << "                                               |\n"
-              << " | 4. Guard Thread:  " << Colors::GREEN << "ACTIVE (Process Tree Tracking Enabled)" << Colors::WHITE << "                                          |\n"
+              << " | 4. WinPcap:       " << Colors::RED << Colors::BOLD << "UNCHECK 'Install WinPcap'" << Colors::WHITE << "                                                             |\n"
+              << " |                   " << Colors::DIM << "(Obsolete driver on Win11; prevents installation errors)" << Colors::WHITE << "                                              |\n"
+              << " | 5. Guard Thread:  " << Colors::GREEN << "ACTIVE (Process Tree Tracking Enabled)" << Colors::WHITE << "                                          |\n"
               << " +-------------------------------------------------------------------------+" << Colors::RESET << "\n\n";
 
     std::cout << " " << Colors::GREEN << "Launching Xilinx installer wizard..." << Colors::RESET << "\n";
@@ -338,7 +340,7 @@ void ExecuteOption5_Launchers(const fs::path& projectRoot) {
 
     fs::path iseExe = root / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "ise.exe";
     fs::path paBat = root / "14.7" / "ISE_DS" / "PlanAhead" / "bin" / "planAhead.bat";
-    fs::path impactExe = root / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "_impact.exe";
+    fs::path impactExe = root / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "impact.exe";
 
     std::cout << "\n " << Colors::BOLD << Colors::WHITE << "[DIRECT APPLICATION LAUNCHERS]" << Colors::RESET << "\n\n";
     std::cout << "  " << Colors::CYAN << "[1]" << Colors::RESET << " Launch 64-bit ISE Project Navigator\n";

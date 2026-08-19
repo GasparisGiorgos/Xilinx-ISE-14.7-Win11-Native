@@ -344,13 +344,34 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
     fs::path startMenu = fs::path(programsPath) / "Xilinx Design Tools (Win11)";
     fs::create_directories(startMenu);
 
+    // 1. Remove obsolete unpatched legacy shortcuts created by default Xilinx installer wizard
+    std::vector<std::wstring> legacyShortcuts = {
+        L"Project Navigator.lnk",
+        L"ISE Design Suite 14.7.lnk",
+        L"PlanAhead 14.7.lnk",
+        L"iMPACT.lnk",
+        L"Xilinx ISE Design Suite 14.7.lnk",
+        L"Xilinx Core Generator.lnk",
+        L"Xilinx FPGA Editor.lnk"
+    };
+    for (const auto& lk : legacyShortcuts) {
+        fs::path p = desktop / lk;
+        if (fs::exists(p)) {
+            std::error_code ec;
+            SetFileAttributesW(p.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+            fs::remove(p, ec);
+        }
+    }
+
     fs::path settings64 = xilinxRoot / "14.7" / "ISE_DS" / "settings64.bat";
     fs::path settings32 = xilinxRoot / "14.7" / "ISE_DS" / "settings32.bat";
     fs::path ise64Exe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "ise.exe";
     fs::path ise32Exe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt" / "ise.exe";
     fs::path paBat = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "bin" / "planAhead.bat";
-    fs::path impactExe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "_impact.exe";
+    fs::path impactExe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "impact.exe";
     fs::path xlcmExe = xilinxRoot / "14.7" / "ISE_DS" / "common" / "bin" / "nt64" / "xlcm.exe";
+    fs::path paIco = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "doc" / "images" / "planAhead_logo.ico";
+    fs::path paIconToUse = fs::exists(paIco) ? paIco : ise64Exe;
 
     if (fs::exists(settings64) && fs::exists(ise64Exe)) {
         CreateShortcutWithArgs(desktop / "Xilinx ISE Project Navigator (64-bit).lnk",
@@ -368,17 +389,21 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
                                settings32, ise32Exe.wstring(), ise32Exe.parent_path(), ise32Exe,
                                L"Xilinx ISE 14.7 Project Navigator (32-bit)");
     }
-    if (fs::exists(paBat)) {
-        CreateShortcut(desktop / "Xilinx PlanAhead (64-bit).lnk", paBat, paBat.parent_path(), ise64Exe, L"Xilinx PlanAhead 14.7 Floorplanner");
-        CreateShortcut(startMenu / "PlanAhead (64-bit).lnk", paBat, paBat.parent_path(), ise64Exe, L"Xilinx PlanAhead 14.7 Floorplanner");
+    if (fs::exists(settings64) && fs::exists(paBat)) {
+        CreateShortcutWithArgs(desktop / "Xilinx PlanAhead (64-bit).lnk",
+                               settings64, paBat.wstring(), paBat.parent_path(), paIconToUse,
+                               L"Xilinx PlanAhead 14.7 Floorplanner (64-bit)");
+        CreateShortcutWithArgs(startMenu / "PlanAhead (64-bit).lnk",
+                               settings64, paBat.wstring(), paBat.parent_path(), paIconToUse,
+                               L"Xilinx PlanAhead 14.7 Floorplanner (64-bit)");
     }
     if (fs::exists(settings64) && fs::exists(impactExe)) {
         CreateShortcutWithArgs(desktop / "Xilinx iMPACT (64-bit).lnk",
                                settings64, impactExe.wstring(), impactExe.parent_path(), impactExe,
-                               L"Xilinx iMPACT Device Programmer");
+                               L"Xilinx iMPACT Device Programmer (64-bit)");
         CreateShortcutWithArgs(startMenu / "iMPACT (64-bit).lnk",
                                settings64, impactExe.wstring(), impactExe.parent_path(), impactExe,
-                               L"Xilinx iMPACT Device Programmer");
+                               L"Xilinx iMPACT Device Programmer (64-bit)");
     }
     if (fs::exists(settings64) && fs::exists(xlcmExe)) {
         CreateShortcutWithArgs(desktop / "Xilinx License Manager.lnk",
@@ -399,6 +424,7 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
     TerminateProcessByName(L"_xlcm.exe");
     TerminateProcessByName(L"ise.exe");
     TerminateProcessByName(L"_pn.exe");
+    TerminateProcessByName(L"impact.exe");
     TerminateProcessByName(L"_impact.exe");
     TerminateProcessByName(L"xsetup.exe");
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -411,6 +437,28 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
     fs::path commonDir = xilinxRoot / "14.7" / "ISE_DS" / "common";
     fs::path paDir = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead";
     fs::path edkDir = xilinxRoot / "14.7" / "ISE_DS" / "EDK";
+
+    // 0.1 Install MSVC 2008 runtimes and copy CRT assemblies for PlanAhead
+    fs::path vc64 = commonDir / "bin" / "nt64" / "vcredist_x64.exe";
+    fs::path vc86 = commonDir / "bin" / "nt" / "vcredist_x86.exe";
+    if (fs::exists(vc64)) {
+        std::wstring vcCmd = L"\"" + vc64.wstring() + L"\" /q /norestart";
+        _wsystem(vcCmd.c_str());
+    }
+    if (fs::exists(vc86)) {
+        std::wstring vcCmd = L"\"" + vc86.wstring() + L"\" /q /norestart";
+        _wsystem(vcCmd.c_str());
+    }
+
+    fs::path unwrappedVC90_64 = paDir / "bin" / "unwrapped" / "win64.o" / "Microsoft.VC90.CRT";
+    fs::path targetVC90_64 = paDir / "lib" / "win64.o" / "Microsoft.VC90.CRT";
+    if (fs::exists(unwrappedVC90_64)) {
+        fs::create_directories(targetVC90_64);
+        for (const auto& entry : fs::directory_iterator(unwrappedVC90_64)) {
+            SafeCopyAndOverwrite(entry.path(), targetVC90_64 / entry.path().filename());
+            SafeCopyAndOverwrite(entry.path(), paDir / "lib" / "win64.o" / entry.path().filename());
+        }
+    }
 
     // 1. ISE nt64 libPortability
     fs::path nosh64Dll = iseDir / "lib" / "nt64" / "libPortabilityNOSH.dll";
