@@ -685,6 +685,25 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
         report.push_back({"PlanAhead SmartHeap Patch", "MISSING", "File not found", paPort64Dll.string(), false});
     }
 
+    // 3.1 Check PlanAhead MSVC90 CRT Assembly Deployment
+    fs::path paVC90 = paDir / "lib" / "win64.o" / "Microsoft.VC90.CRT";
+    if (fs::exists(paVC90 / "msvcr90.dll") || fs::exists(paDir / "lib" / "win64.o" / "msvcr90.dll")) {
+        report.push_back({"PlanAhead MSVC90 CRT Runtimes", "HEALTHY", "Verified CRT assembly in win64.o", paVC90.string(), true});
+    } else {
+        fs::path srcVC90 = paDir / "bin" / "unwrapped" / "win64.o" / "Microsoft.VC90.CRT";
+        if (fs::exists(srcVC90)) {
+            std::error_code ec;
+            fs::create_directories(paVC90, ec);
+            for (const auto& entry : fs::directory_iterator(srcVC90)) {
+                SafeCopyAndOverwrite(entry.path(), paVC90 / entry.path().filename());
+                SafeCopyAndOverwrite(entry.path(), paDir / "lib" / "win64.o" / entry.path().filename());
+            }
+            report.push_back({"PlanAhead MSVC90 CRT Runtimes", "REPAIRED", "Deployed VC90 CRT to win64.o", paVC90.string(), true});
+        } else {
+            report.push_back({"PlanAhead MSVC90 CRT Runtimes", "WARNING", "Source VC90 CRT not found", paVC90.string(), false});
+        }
+    }
+
     // 4. Check 32-bit Core libPortability.dll
     fs::path nosh32Dll = iseDir / "lib" / "nt" / "libPortabilityNOSH.dll";
     fs::path isePort32Dll = iseDir / "lib" / "nt" / "libPortability.dll";
