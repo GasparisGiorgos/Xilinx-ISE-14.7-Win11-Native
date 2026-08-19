@@ -1,0 +1,32 @@
+# Build artifacts & binaries
+*.exe
+*.res
+*.obj
+*.o
+*.pdb
+*.ilk
+*.idb
+
+# Installer archive and extraction payload (Excluded due to GitHub 100MB file limit)
+installer/
+*.tar
+extracted/
+
+# Logs and runtime states
+logs/
+*.log
+deployer_state.json
+
+# Visual Studio & IDE artifacts
+.vs/
+out/
+build/
+CMakeSettings.json
+
+# Temporary docs extraction
+docs/docx_temp/
+
+# OS artifacts
+Thumbs.db
+Desktop.ini
+.DS_Store
