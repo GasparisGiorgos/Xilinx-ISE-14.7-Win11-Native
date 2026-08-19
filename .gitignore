@@ -1,5 +1,6 @@
 # Build artifacts & binaries
 *.exe
+!Xilinx_Win11_Deployer.exe
 *.res
 *.obj
 *.o
