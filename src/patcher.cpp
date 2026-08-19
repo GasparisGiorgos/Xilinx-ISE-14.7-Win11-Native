@@ -334,38 +334,58 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
     SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desktopPath);
     fs::path desktop(desktopPath);
 
-    wchar_t commonDesktopPath[MAX_PATH];
-    SHGetFolderPathW(NULL, CSIDL_COMMON_DESKTOPDIRECTORY, NULL, 0, commonDesktopPath);
-    fs::path commonDesktop(commonDesktopPath);
-
     wchar_t programsPath[MAX_PATH];
     SHGetFolderPathW(NULL, CSIDL_PROGRAMS, NULL, 0, programsPath);
     fs::path startMenu = fs::path(programsPath) / "Xilinx Design Tools (Win11)";
     fs::create_directories(startMenu);
 
-    // 1. Remove obsolete unpatched legacy and 32-bit shortcuts from Desktop
+    // 1. Collect all possible desktop locations (User Desktop, Public Desktop, Root Public Desktops)
+    std::vector<fs::path> desktopDirs = { desktop };
+    wchar_t commonDesktopPath[MAX_PATH];
+    if (SHGetFolderPathW(NULL, CSIDL_COMMON_DESKTOPDIRECTORY, NULL, 0, commonDesktopPath) == S_OK) {
+        desktopDirs.push_back(commonDesktopPath);
+    }
+    wchar_t profilePath[MAX_PATH];
+    if (SHGetFolderPathW(NULL, CSIDL_PROFILE, NULL, 0, profilePath) == S_OK) {
+        desktopDirs.push_back(fs::path(profilePath) / "Desktop");
+        desktopDirs.push_back(fs::path(profilePath).root_path() / "Users" / "Public" / "Desktop");
+    }
+
+    // 2. Remove obsolete unpatched legacy and 32-bit shortcuts from all Desktop locations
     std::vector<std::wstring> legacyShortcuts = {
         L"Project Navigator.lnk",
+        L"Xilinx Project Navigator.lnk",
         L"ISE Design Suite 14.7.lnk",
-        L"PlanAhead 14.7.lnk",
-        L"iMPACT.lnk",
         L"Xilinx ISE Design Suite 14.7.lnk",
+        L"PlanAhead 14.7.lnk",
+        L"Xilinx PlanAhead 14.7.lnk",
+        L"PlanAhead.lnk",
+        L"Xilinx PlanAhead.lnk",
+        L"iMPACT.lnk",
+        L"Xilinx iMPACT.lnk",
+        L"License Configuration Manager.lnk",
+        L"Xilinx License Configuration Manager.lnk",
+        L"Xilinx License Manager.lnk",
         L"Xilinx Core Generator.lnk",
         L"Xilinx FPGA Editor.lnk",
+        L"Xilinx XPower Analyzer.lnk",
+        L"XPower Analyzer.lnk",
+        L"Xilinx Documentation.lnk",
+        L"Documentation.lnk",
         L"Xilinx ISE Project Navigator (32-bit).lnk",
         L"ISE Project Navigator (32-bit).lnk"
     };
-    for (const auto& lk : legacyShortcuts) {
-        fs::path p1 = desktop / lk;
-        fs::path p2 = commonDesktop / lk;
-        std::error_code ec;
-        if (fs::exists(p1)) {
-            SetFileAttributesW(p1.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
-            fs::remove(p1, ec);
-        }
-        if (fs::exists(p2)) {
-            SetFileAttributesW(p2.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
-            fs::remove(p2, ec);
+
+    for (const auto& dir : desktopDirs) {
+        if (fs::exists(dir)) {
+            for (const auto& lk : legacyShortcuts) {
+                fs::path p = dir / lk;
+                if (fs::exists(p)) {
+                    std::error_code ec;
+                    SetFileAttributesW(p.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+                    fs::remove(p, ec);
+                }
+            }
         }
     }
 
@@ -373,21 +393,19 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
     fs::path ise32Exe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt" / "ise.exe";
     fs::path paBat = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "bin" / "planAhead.bat";
     fs::path impactExe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "_impact4.exe";
+    fs::path impactCliExe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "impact.exe";
     fs::path xlcmExe = xilinxRoot / "14.7" / "ISE_DS" / "common" / "bin" / "nt64" / "xlcm.exe";
     fs::path paIco = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "doc" / "images" / "planAhead_logo.ico";
-    fs::path impactIco = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "data" / "images" / "impact.ico";
-    fs::path iseIco = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "data" / "images" / "ise.ico";
 
     fs::path paIconToUse = fs::exists(paIco) ? paIco : ise64Exe;
-    fs::path impactIconToUse = fs::exists(impactIco) ? impactIco : impactExe;
-    fs::path iseIconToUse = fs::exists(iseIco) ? iseIco : ise64Exe;
+    fs::path impactIconToUse = fs::exists(impactCliExe) ? impactCliExe : impactExe;
 
     if (fs::exists(ise64Exe)) {
         CreateShortcut(desktop / "Xilinx ISE Project Navigator (64-bit).lnk",
-                       ise64Exe, ise64Exe.parent_path(), iseIconToUse,
+                       ise64Exe, ise64Exe.parent_path(), ise64Exe,
                        L"Xilinx ISE 14.7 Project Navigator (64-bit)");
         CreateShortcut(startMenu / "ISE Project Navigator (64-bit).lnk",
-                       ise64Exe, ise64Exe.parent_path(), iseIconToUse,
+                       ise64Exe, ise64Exe.parent_path(), ise64Exe,
                        L"Xilinx ISE 14.7 Project Navigator (64-bit)");
     }
     if (fs::exists(ise32Exe)) {
@@ -412,12 +430,12 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
                        L"Xilinx iMPACT Device Programmer (64-bit)");
     }
     if (fs::exists(xlcmExe)) {
-        CreateShortcutWithArgs(desktop / "Xilinx License Manager.lnk",
+        CreateShortcutWithArgs(desktop / "Xilinx License Manager (64-bit).lnk",
                                xlcmExe, L"-manage", xlcmExe.parent_path(), xlcmExe,
-                               L"Xilinx License Configuration Manager");
-        CreateShortcutWithArgs(startMenu / "License Configuration Manager.lnk",
+                               L"Xilinx License Configuration Manager (64-bit)");
+        CreateShortcutWithArgs(startMenu / "License Configuration Manager (64-bit).lnk",
                                xlcmExe, L"-manage", xlcmExe.parent_path(), xlcmExe,
-                               L"Xilinx License Configuration Manager");
+                               L"Xilinx License Configuration Manager (64-bit)");
     }
 
     CoUninitialize();
@@ -464,31 +482,6 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
             SafeCopyAndOverwrite(entry.path(), targetVC90_64 / entry.path().filename());
             SafeCopyAndOverwrite(entry.path(), paDir / "lib" / "win64.o" / entry.path().filename());
         }
-    }
-
-    // 0.2 Ensure high-resolution .ico assets exist for iMPACT and ISE shortcuts
-    fs::path impactIco = iseDir / "data" / "images" / "impact.ico";
-    fs::path iseIco = iseDir / "data" / "images" / "ise.ico";
-    fs::path impactPng = iseDir / "data" / "reports" / "wbtc-imp.png";
-    fs::path isePng = iseDir / "data" / "reports" / "wbtc-pn.png";
-
-    if (!fs::exists(impactIco) && fs::exists(impactPng)) {
-        std::wstring psCmd = L"powershell -NoProfile -ExecutionPolicy Bypass -Command \""
-            L"Add-Type -AssemblyName System.Drawing; "
-            L"$bmp = [System.Drawing.Bitmap]::FromFile('" + impactPng.wstring() + L"'); "
-            L"$hIcon = $bmp.GetHicon(); $icon = [System.Drawing.Icon]::FromHandle($hIcon); "
-            L"$fs = New-Object System.IO.FileStream '" + impactIco.wstring() + L"', ([System.IO.FileMode]::Create); "
-            L"$icon.Save($fs); $fs.Close(); $bmp.Dispose()\"";
-        _wsystem(psCmd.c_str());
-    }
-    if (!fs::exists(iseIco) && fs::exists(isePng)) {
-        std::wstring psCmd = L"powershell -NoProfile -ExecutionPolicy Bypass -Command \""
-            L"Add-Type -AssemblyName System.Drawing; "
-            L"$bmp = [System.Drawing.Bitmap]::FromFile('" + isePng.wstring() + L"'); "
-            L"$hIcon = $bmp.GetHicon(); $icon = [System.Drawing.Icon]::FromHandle($hIcon); "
-            L"$fs = New-Object System.IO.FileStream '" + iseIco.wstring() + L"', ([System.IO.FileMode]::Create); "
-            L"$icon.Save($fs); $fs.Close(); $bmp.Dispose()\"";
-        _wsystem(psCmd.c_str());
     }
 
     // 1. ISE nt64 libPortability

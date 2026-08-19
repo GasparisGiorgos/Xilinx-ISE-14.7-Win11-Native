@@ -238,7 +238,7 @@ void ExecuteOption2(const fs::path& projectRoot) {
               << "   - Xilinx ISE Project Navigator (64-bit)\n"
               << "   - Xilinx PlanAhead (64-bit)\n"
               << "   - Xilinx iMPACT (64-bit)\n"
-              << "   - Xilinx License Manager\n"
+              << "   - Xilinx License Manager (64-bit)\n"
               << "==============================================================================="
               << Colors::RESET << "\n";
 
