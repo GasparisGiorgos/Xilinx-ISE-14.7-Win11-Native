@@ -373,44 +373,44 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
     fs::path paIco = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "doc" / "images" / "planAhead_logo.ico";
     fs::path paIconToUse = fs::exists(paIco) ? paIco : ise64Exe;
 
-    if (fs::exists(settings64) && fs::exists(ise64Exe)) {
-        CreateShortcutWithArgs(desktop / "Xilinx ISE Project Navigator (64-bit).lnk",
-                               settings64, ise64Exe.wstring(), ise64Exe.parent_path(), ise64Exe,
-                               L"Xilinx ISE 14.7 Project Navigator (64-bit)");
-        CreateShortcutWithArgs(startMenu / "ISE Project Navigator (64-bit).lnk",
-                               settings64, ise64Exe.wstring(), ise64Exe.parent_path(), ise64Exe,
-                               L"Xilinx ISE 14.7 Project Navigator (64-bit)");
+    if (fs::exists(ise64Exe)) {
+        CreateShortcut(desktop / "Xilinx ISE Project Navigator (64-bit).lnk",
+                       ise64Exe, ise64Exe.parent_path(), ise64Exe,
+                       L"Xilinx ISE 14.7 Project Navigator (64-bit)");
+        CreateShortcut(startMenu / "ISE Project Navigator (64-bit).lnk",
+                       ise64Exe, ise64Exe.parent_path(), ise64Exe,
+                       L"Xilinx ISE 14.7 Project Navigator (64-bit)");
     }
-    if (fs::exists(settings32) && fs::exists(ise32Exe)) {
-        CreateShortcutWithArgs(desktop / "Xilinx ISE Project Navigator (32-bit).lnk",
-                               settings32, ise32Exe.wstring(), ise32Exe.parent_path(), ise32Exe,
-                               L"Xilinx ISE 14.7 Project Navigator (32-bit)");
-        CreateShortcutWithArgs(startMenu / "ISE Project Navigator (32-bit).lnk",
-                               settings32, ise32Exe.wstring(), ise32Exe.parent_path(), ise32Exe,
-                               L"Xilinx ISE 14.7 Project Navigator (32-bit)");
+    if (fs::exists(ise32Exe)) {
+        CreateShortcut(desktop / "Xilinx ISE Project Navigator (32-bit).lnk",
+                       ise32Exe, ise32Exe.parent_path(), ise32Exe,
+                       L"Xilinx ISE 14.7 Project Navigator (32-bit)");
+        CreateShortcut(startMenu / "ISE Project Navigator (32-bit).lnk",
+                       ise32Exe, ise32Exe.parent_path(), ise32Exe,
+                       L"Xilinx ISE 14.7 Project Navigator (32-bit)");
     }
-    if (fs::exists(settings64) && fs::exists(paBat)) {
-        CreateShortcutWithArgs(desktop / "Xilinx PlanAhead (64-bit).lnk",
-                               settings64, paBat.wstring(), paBat.parent_path(), paIconToUse,
-                               L"Xilinx PlanAhead 14.7 Floorplanner (64-bit)");
-        CreateShortcutWithArgs(startMenu / "PlanAhead (64-bit).lnk",
-                               settings64, paBat.wstring(), paBat.parent_path(), paIconToUse,
-                               L"Xilinx PlanAhead 14.7 Floorplanner (64-bit)");
+    if (fs::exists(paBat)) {
+        CreateShortcut(desktop / "Xilinx PlanAhead (64-bit).lnk",
+                       paBat, paBat.parent_path(), paIconToUse,
+                       L"Xilinx PlanAhead 14.7 Floorplanner (64-bit)");
+        CreateShortcut(startMenu / "PlanAhead (64-bit).lnk",
+                       paBat, paBat.parent_path(), paIconToUse,
+                       L"Xilinx PlanAhead 14.7 Floorplanner (64-bit)");
     }
-    if (fs::exists(settings64) && fs::exists(impactExe)) {
-        CreateShortcutWithArgs(desktop / "Xilinx iMPACT (64-bit).lnk",
-                               settings64, impactExe.wstring(), impactExe.parent_path(), impactExe,
-                               L"Xilinx iMPACT Device Programmer (64-bit)");
-        CreateShortcutWithArgs(startMenu / "iMPACT (64-bit).lnk",
-                               settings64, impactExe.wstring(), impactExe.parent_path(), impactExe,
-                               L"Xilinx iMPACT Device Programmer (64-bit)");
+    if (fs::exists(impactExe)) {
+        CreateShortcut(desktop / "Xilinx iMPACT (64-bit).lnk",
+                       impactExe, impactExe.parent_path(), impactExe,
+                       L"Xilinx iMPACT Device Programmer (64-bit)");
+        CreateShortcut(startMenu / "iMPACT (64-bit).lnk",
+                       impactExe, impactExe.parent_path(), impactExe,
+                       L"Xilinx iMPACT Device Programmer (64-bit)");
     }
-    if (fs::exists(settings64) && fs::exists(xlcmExe)) {
+    if (fs::exists(xlcmExe)) {
         CreateShortcutWithArgs(desktop / "Xilinx License Manager.lnk",
-                               settings64, (xlcmExe.wstring() + L" -manage"), xlcmExe.parent_path(), xlcmExe,
+                               xlcmExe, L"-manage", xlcmExe.parent_path(), xlcmExe,
                                L"Xilinx License Configuration Manager");
         CreateShortcutWithArgs(startMenu / "License Configuration Manager.lnk",
-                               settings64, (xlcmExe.wstring() + L" -manage"), xlcmExe.parent_path(), xlcmExe,
+                               xlcmExe, L"-manage", xlcmExe.parent_path(), xlcmExe,
                                L"Xilinx License Configuration Manager");
     }
 
