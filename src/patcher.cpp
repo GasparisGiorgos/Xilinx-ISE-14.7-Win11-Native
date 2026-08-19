@@ -368,7 +368,7 @@ void Patcher::CreateAllShortcuts(const fs::path& xilinxRoot) {
     fs::path ise64Exe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "ise.exe";
     fs::path ise32Exe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt" / "ise.exe";
     fs::path paBat = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "bin" / "planAhead.bat";
-    fs::path impactExe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "impact.exe";
+    fs::path impactExe = xilinxRoot / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "_impact4.exe";
     fs::path xlcmExe = xilinxRoot / "14.7" / "ISE_DS" / "common" / "bin" / "nt64" / "xlcm.exe";
     fs::path paIco = xilinxRoot / "14.7" / "ISE_DS" / "PlanAhead" / "doc" / "images" / "planAhead_logo.ico";
     fs::path paIconToUse = fs::exists(paIco) ? paIco : ise64Exe;

@@ -341,7 +341,7 @@ void ExecuteOption5_Launchers(const fs::path& projectRoot) {
 
     fs::path iseExe = root / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "ise.exe";
     fs::path paBat = root / "14.7" / "ISE_DS" / "PlanAhead" / "bin" / "planAhead.bat";
-    fs::path impactExe = root / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "impact.exe";
+    fs::path impactExe = root / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "_impact4.exe";
 
     std::cout << "\n " << Colors::BOLD << Colors::WHITE << "[DIRECT APPLICATION LAUNCHERS]" << Colors::RESET << "\n\n";
     std::cout << "  " << Colors::CYAN << "[1]" << Colors::RESET << " Launch 64-bit ISE Project Navigator\n";
