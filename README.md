@@ -1,5 +1,7 @@
 # Xilinx ISE 14.7 - Windows 11 Native Deployment Suite
 
+> A deployer built out of pure frustration with Windows compatibility layers after watching ISE crash one too many times. I wasted a non-trivial amount of sanity debugging silent crashes and system hangs so that 64-bit ISE runs natively without manual DLL patches or dealing with a 15 GB VirtualBox VM.
+
 A standalone deployment, patching, and rollback tool written in C++20 for running Xilinx ISE Design Suite 14.7 bare-metal on 64-bit Windows 11 (24H2 / 25H2+) without VirtualBox VMs, Linux emulation, or Docker.
 
 ---
