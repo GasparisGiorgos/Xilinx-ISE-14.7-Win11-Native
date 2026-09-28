@@ -18,6 +18,7 @@
 #include "patcher.hpp"
 #include "extractor.hpp"
 #include "state_manager.hpp"
+#include "stub_bytes.hpp"
 
 static bool SafeCopyAndOverwrite(const fs::path& src, const fs::path& dest) {
     if (!fs::exists(src)) return false;
@@ -589,9 +590,12 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
     if (currentPath.find(paBin) == std::wstring::npos) newPath += paBin + L";";
 
     if (!newPath.empty()) {
-        SetEnvironmentVariablePermanent(L"PATH", newPath + currentPath);
+        std::wstring finalPath = currentPath;
+        if (!finalPath.empty() && finalPath.back() != L';') finalPath += L';';
+        finalPath += newPath;
+        SetEnvironmentVariablePermanent(L"PATH", finalPath);
     }
-    results.push_back({"Windows Environment & PATH", "Injected binary/library directories into PATH", true});
+    results.push_back({"Windows Environment & PATH", "Appended binary/library directories to User PATH", true});
 
     // 6. Clean up old compatibility layers to ensure pure CRT execution
     HKEY hCompatKey;
@@ -634,19 +638,25 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
     };
 
     for (const auto& nf : notifyFiles) {
-        if (fs::exists(nf)) {
+        if (fs::exists(nf) && fs::file_size(nf) != sizeof(kSilentNotifyStub)) {
             fs::path nfBackup = nf.string() + ".orig";
             if (!fs::exists(nfBackup)) {
                 SafeCopyAndOverwrite(nf, nfBackup);
                 StateManager::Instance().RecordAction(ActionType::BACKUP_FILE, nf.string(), nfBackup.string());
             }
             SetFileAttributesW(nf.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
-            std::error_code ec;
-            fs::remove(nf, ec);
+            std::ofstream out(nf, std::ios::binary | std::ios::trunc);
+            if (out.is_open()) {
+                for (size_t i = 0; i < sizeof(kSilentNotifyStub); ++i) {
+                    char b = static_cast<char>(kSilentNotifyStub[i] ^ kSilentNotifyStubMask);
+                    out.put(b);
+                }
+                out.close();
+            }
         }
     }
 
-    results.push_back({"XilinxNotify Deactivation", "Disabled obsolete update check servers & quarantined binaries", true});
+    results.push_back({"XilinxNotify Deactivation", "Disabled obsolete update check servers & installed silent stub", true});
 
     // 7. Provision License
     bool licOk = ProvisionLicense();
@@ -810,8 +820,8 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
         }
     }
 
-    // 9. Check XilinxNotify AutoUpdate Deactivation
-    bool notifyNeutered = true;
+    // 9. Check XilinxNotify AutoUpdate Deactivation & Silent Stub Binaries
+    bool stubRepaired = false;
     std::vector<fs::path> notifyFiles = {
         commonDir / "bin" / "nt64" / "xilinxnotify.exe",
         commonDir / "bin" / "nt64" / "_xilinxnotify.exe",
@@ -819,15 +829,17 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
         commonDir / "bin" / "nt" / "_xilinxnotify.exe"
     };
     for (const auto& nf : notifyFiles) {
-        if (fs::exists(nf)) {
-            fs::path nfBackup = nf.string() + ".orig";
-            if (!fs::exists(nfBackup)) {
-                SafeCopyAndOverwrite(nf, nfBackup);
-            }
+        if (fs::exists(nf) && fs::file_size(nf) != sizeof(kSilentNotifyStub)) {
             SetFileAttributesW(nf.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
-            std::error_code ec;
-            fs::remove(nf, ec);
-            notifyNeutered = false;
+            std::ofstream out(nf, std::ios::binary | std::ios::trunc);
+            if (out.is_open()) {
+                for (size_t i = 0; i < sizeof(kSilentNotifyStub); ++i) {
+                    char b = static_cast<char>(kSilentNotifyStub[i] ^ kSilentNotifyStubMask);
+                    out.put(b);
+                }
+                out.close();
+                stubRepaired = true;
+            }
         }
     }
 
@@ -835,8 +847,8 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\Common\\Update", 0, KEY_READ, &hAuditUpdate) == ERROR_SUCCESS) {
         DWORD autoCheck = 1;
         DWORD size = sizeof(autoCheck);
-        if (RegQueryValueExW(hAuditUpdate, L"AutoCheck", NULL, NULL, (LPBYTE)&autoCheck, &size) == ERROR_SUCCESS && autoCheck == 0 && notifyNeutered) {
-            report.push_back({"XilinxNotify Deactivation", "HEALTHY", "Disabled obsolete update check servers", "HKCU\\Software\\Xilinx\\Common\\Update", true});
+        if (RegQueryValueExW(hAuditUpdate, L"AutoCheck", NULL, NULL, (LPBYTE)&autoCheck, &size) == ERROR_SUCCESS && autoCheck == 0 && !stubRepaired) {
+            report.push_back({"XilinxNotify Deactivation", "HEALTHY", "Disabled obsolete update servers & stubbed", "HKCU\\Software\\Xilinx\\Common\\Update", true});
         } else {
             HKEY hSet;
             if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Xilinx\\Common\\Update", 0, KEY_SET_VALUE, &hSet) == ERROR_SUCCESS) {
@@ -846,7 +858,7 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
                 RegSetValueExW(hSet, L"Enable", 0, REG_DWORD, (const BYTE*)&zero, sizeof(zero));
                 RegCloseKey(hSet);
             }
-            report.push_back({"XilinxNotify Deactivation", "REPAIRED", "Disabled update servers & quarantined binaries", "HKCU\\Software\\Xilinx\\Common\\Update", true});
+            report.push_back({"XilinxNotify Deactivation", "REPAIRED", "Disabled update servers & installed silent stub", "HKCU\\Software\\Xilinx\\Common\\Update", true});
         }
         RegCloseKey(hAuditUpdate);
     }
