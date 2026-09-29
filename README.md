@@ -1,6 +1,6 @@
 # Xilinx ISE 14.7 - Windows 11 Native Deployment Suite
 
-> A deployer built out of pure frustration with Windows compatibility layers after watching ISE crash one too many times. I wasted a non-trivial amount of sanity debugging silent crashes and system hangs so that 64-bit ISE runs natively without manual DLL patches or dealing with a 15 GB VirtualBox VM.
+> A native deployment tool designed to run 64-bit ISE natively on modern Windows without manual DLL patches or dealing with a 15 GB VirtualBox VM.
 
 A standalone deployment, patching, and rollback tool written in C++20 for running Xilinx ISE Design Suite 14.7 bare-metal on 64-bit Windows 11 (24H2 / 25H2+) without VirtualBox VMs, Linux emulation, or Docker.
 
@@ -14,7 +14,7 @@ AMD/Xilinx deprecated ISE 14.7 for Windows 7 in 2013, providing a slow VirtualBo
 
 - **Fixes File Dialog Crashes**: Replaces the buggy MicroQuill SmartHeap memory allocator (`libPortability.dll`) with Xilinx's native non-SmartHeap CRT build (`libPortabilityNOSH.dll`) across 32-bit and 64-bit tools, fixing access violation crashes (`0xC0000005`) on `File > Open Project` and `Save As`.
 - **Prevents Installer Freezes**: Bypasses dead 2013 WebTalk telemetry endpoints by writing opt-out configurations and running a process tree guard that prevents the setup wizard from hanging at 82% and 90%.
-- **Resolves Startup Deadlocks**: Reorders Windows Network Providers non-destructively so NetBIOS queries resolve immediately without waiting on inactive WSL (`P9NP`) or VPN hooks.
+- **Resolves Startup Deadlocks**: Eliminates WSL/P9NP synchronous freezes by deploying local zero-latency MPR deadlock shims and sanitizing Windows Network Provider order so toolchains initialize instantly without hanging at 12MB RAM.
 - **Configures 64-Bit Environment**: Sets all required environment variables (`XILINX`, `XILINX_DSP`, `XILINX_VC_CHECK_NOOP=1`), updates user PATH, and generates clean desktop shortcuts for 64-bit Project Navigator, PlanAhead, and iMPACT.
 - **Safe Rollback**: Tracks every modification in a transaction ledger (`deployer_state.json`), allowing full reversal and clean uninstallation at any time.
 
@@ -57,7 +57,7 @@ Launch `Xilinx_Win11_Deployer.exe` (it will automatically request Administrator 
 ### Initial Launch & Performance Notes
 
 * **Library & Architecture Loading**: On the first launch after a system restart, the suite (Project Navigator, PlanAhead, and iMPACT) reads FPGA device family catalogs (Spartan-6, Virtex, 7-series) and timing definitions into memory.
-* During this initial disk I/O phase, the splash screen will stream library status messages in the bottom corner before the main interface appears. Allow 10–20 seconds for the initial catalog load to complete *(or slightly longer if, like me during testing, you are running an entire Windows 11 installation and Xilinx suite off an external SATA SSD via a USB adapter)*.
+* During this initial disk I/O phase, the splash screen will stream library status messages in the bottom corner before the main interface appears. Allow 10–20 seconds for the initial catalog load to complete (or slightly longer on slower storage / external drives).
 * Once buffered into OS memory cache, all subsequent launches open in 1–2 seconds.
 * **Storage / Defender Tip**: Adding a Windows Security folder exclusion for your Xilinx installation directory (`C:\Xilinx` or your custom drive) prevents real-time antivirus inspection across the thousands of internal device database files.
 
