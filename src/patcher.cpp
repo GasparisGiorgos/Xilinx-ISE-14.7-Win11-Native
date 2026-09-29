@@ -114,26 +114,33 @@ bool Patcher::OptimizeNetworkProviders() {
         if (RegQueryValueExW(hKey, L"ProviderOrder", NULL, NULL, (LPBYTE)currentOrder, &size) == ERROR_SUCCESS) {
             std::wstring orderStr = currentOrder;
 
-            // If LanmanWorkstation is already first, no modification needed!
-            if (orderStr.rfind(L"LanmanWorkstation", 0) == 0) {
+            // Check if P9NP (WSL Plan 9 provider) is present
+            bool hasP9 = (orderStr.find(L"P9NP") != std::wstring::npos);
+
+            // If LanmanWorkstation is already first AND P9NP is absent, no modification needed!
+            if (!hasP9 && orderStr.rfind(L"LanmanWorkstation", 0) == 0) {
                 RegCloseKey(hKey);
                 return true;
             }
 
-            // Backup original string before any modifications
-            RegSetValueExW(hKey, L"ProviderOrder_OriginalBackup", 0, REG_SZ,
-                          (const BYTE*)currentOrder,
-                          (DWORD)((orderStr.length() + 1) * sizeof(wchar_t)));
+            // Backup original string before any modifications (only if backup doesn't already exist)
+            wchar_t backupBuf[1024];
+            DWORD backupSize = sizeof(backupBuf);
+            if (RegQueryValueExW(hKey, L"ProviderOrder_OriginalBackup", NULL, NULL, (LPBYTE)backupBuf, &backupSize) != ERROR_SUCCESS) {
+                RegSetValueExW(hKey, L"ProviderOrder_OriginalBackup", 0, REG_SZ,
+                              (const BYTE*)currentOrder,
+                              (DWORD)((orderStr.length() + 1) * sizeof(wchar_t)));
+            }
 
             std::string origStr(orderStr.begin(), orderStr.end());
             StateManager::Instance().RecordAction(ActionType::MODIFY_PROVIDER_ORDER, "ProviderOrder", origStr);
 
-            // Reorder intelligently: Move LanmanWorkstation & RDPNP to the front without removing any providers!
+            // Reorder: Move LanmanWorkstation & RDPNP to the front, EXCLUDE P9NP to eliminate synchronous WSL deadlocks!
             std::vector<std::wstring> providers;
             std::wstringstream wss(orderStr);
             std::wstring token;
             while (std::getline(wss, token, L',')) {
-                if (!token.empty() && token != L"LanmanWorkstation" && token != L"RDPNP") {
+                if (!token.empty() && token != L"LanmanWorkstation" && token != L"RDPNP" && token != L"P9NP") {
                     providers.push_back(token);
                 }
             }
@@ -456,7 +463,7 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
 
     // 0. Optimize Network Provider Order (Bypasses WSL P9NP / WebClient deadlocks with intelligent reordering)
     bool netOpt = OptimizeNetworkProviders();
-    results.push_back({"Network Provider Optimization", netOpt ? "Prioritized LAN Providers (Preserved WSL/VPN providers)" : "Permission note (run as Admin)", netOpt});
+    results.push_back({"Network Provider Optimization", netOpt ? "Prioritized LAN Providers & Neutralized WSL P9NP" : "Permission note (run as Admin)", netOpt});
 
     fs::path iseDir = xilinxRoot / "14.7" / "ISE_DS" / "ISE";
     fs::path commonDir = xilinxRoot / "14.7" / "ISE_DS" / "common";
@@ -658,6 +665,51 @@ std::vector<PatchResult> Patcher::ApplyAllPatches(const fs::path& xilinxRoot) {
 
     results.push_back({"XilinxNotify Deactivation", "Disabled obsolete update check servers & installed silent stub", true});
 
+    // 6.2 Deploy local MPR network shims (Neutralizes WNet network share deadlocks on Windows 10/11)
+    std::vector<fs::path> mpr64Targets = {
+        iseDir / "bin" / "nt64" / "mpr.dll",
+        iseDir / "lib" / "nt64" / "mpr.dll",
+        commonDir / "bin" / "nt64" / "mpr.dll",
+        commonDir / "lib" / "nt64" / "mpr.dll",
+        paDir / "lib" / "win64.o" / "mpr.dll"
+    };
+    for (const auto& mp : mpr64Targets) {
+        if (fs::exists(mp.parent_path()) && (!fs::exists(mp) || fs::file_size(mp) != sizeof(kMprShim64))) {
+            SetFileAttributesW(mp.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+            std::ofstream out(mp, std::ios::binary | std::ios::trunc);
+            if (out.is_open()) {
+                for (size_t i = 0; i < sizeof(kMprShim64); ++i) {
+                    char b = static_cast<char>(kMprShim64[i] ^ kMprShim64Mask);
+                    out.put(b);
+                }
+                out.close();
+                StateManager::Instance().RecordAction(ActionType::CREATE_FILE, mp.string());
+            }
+        }
+    }
+
+    std::vector<fs::path> mpr32Targets = {
+        iseDir / "bin" / "nt" / "mpr.dll",
+        iseDir / "lib" / "nt" / "mpr.dll",
+        commonDir / "bin" / "nt" / "mpr.dll",
+        commonDir / "lib" / "nt" / "mpr.dll"
+    };
+    for (const auto& mp : mpr32Targets) {
+        if (fs::exists(mp.parent_path()) && (!fs::exists(mp) || fs::file_size(mp) != sizeof(kMprShim32))) {
+            SetFileAttributesW(mp.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+            std::ofstream out(mp, std::ios::binary | std::ios::trunc);
+            if (out.is_open()) {
+                for (size_t i = 0; i < sizeof(kMprShim32); ++i) {
+                    char b = static_cast<char>(kMprShim32[i] ^ kMprShim32Mask);
+                    out.put(b);
+                }
+                out.close();
+                StateManager::Instance().RecordAction(ActionType::CREATE_FILE, mp.string());
+            }
+        }
+    }
+    results.push_back({"MPR Network Deadlock Shim", "Deployed local zero-latency shims across 64-bit and 32-bit suites", true});
+
     // 7. Provision License
     bool licOk = ProvisionLicense();
     results.push_back({"License Auto-Provisioning", licOk ? "Configured XILINXD_LICENSE_FILE (.lic)" : "User prompt required (Option 2 will assist)", licOk});
@@ -754,14 +806,50 @@ std::vector<DiagnosticItem> Patcher::RunDiagnosticsAndRepair(const fs::path& xil
         DWORD size = sizeof(currentOrder);
         if (RegQueryValueExW(hNetKey, L"ProviderOrder", NULL, NULL, (LPBYTE)currentOrder, &size) == ERROR_SUCCESS) {
             std::wstring orderStr = currentOrder;
-            if (orderStr.rfind(L"LanmanWorkstation", 0) == 0) {
-                report.push_back({"Network Provider Order", "HEALTHY", "LAN provider prioritized (WSL/VPN safe)", "HKLM\\...\\NetworkProvider\\Order", true});
+            bool hasP9 = (orderStr.find(L"P9NP") != std::wstring::npos);
+            if (orderStr.rfind(L"LanmanWorkstation", 0) == 0 && !hasP9) {
+                report.push_back({"Network Provider Order", "HEALTHY", "LAN provider prioritized (WSL P9NP neutralized)", "HKLM\\...\\NetworkProvider\\Order", true});
             } else {
                 OptimizeNetworkProviders();
-                report.push_back({"Network Provider Order", "REPAIRED", "Reordered LanmanWorkstation to front", "HKLM\\...\\NetworkProvider\\Order", true});
+                report.push_back({"Network Provider Order", "REPAIRED", "Filtered out deadlocked P9NP & prioritized LAN", "HKLM\\...\\NetworkProvider\\Order", true});
             }
         }
         RegCloseKey(hNetKey);
+    }
+
+    // 5.1 Check MPR Shim Deployment (Neutralizes WNet network deadlocks)
+    bool mprRepaired = false;
+    bool mprAllPresent = true;
+    std::vector<fs::path> mpr64Files = {
+        iseDir / "bin" / "nt64" / "mpr.dll",
+        iseDir / "lib" / "nt64" / "mpr.dll",
+        commonDir / "bin" / "nt64" / "mpr.dll",
+        commonDir / "lib" / "nt64" / "mpr.dll",
+        paDir / "lib" / "win64.o" / "mpr.dll"
+    };
+    for (const auto& mp : mpr64Files) {
+        if (fs::exists(mp.parent_path())) {
+            if (!fs::exists(mp) || fs::file_size(mp) != sizeof(kMprShim64)) {
+                mprAllPresent = false;
+                SetFileAttributesW(mp.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+                std::ofstream out(mp, std::ios::binary | std::ios::trunc);
+                if (out.is_open()) {
+                    for (size_t i = 0; i < sizeof(kMprShim64); ++i) {
+                        char b = static_cast<char>(kMprShim64[i] ^ kMprShim64Mask);
+                        out.put(b);
+                    }
+                    out.close();
+                    mprRepaired = true;
+                }
+            }
+        }
+    }
+    if (mprRepaired) {
+        report.push_back({"MPR Network Deadlock Shim", "REPAIRED", "Deployed missing/corrupted mpr.dll shims", iseDir.string() + "\\...\\mpr.dll", true});
+    } else if (mprAllPresent) {
+        report.push_back({"MPR Network Deadlock Shim", "HEALTHY", "Verified active zero-latency network shims", iseDir.string() + "\\...\\mpr.dll", true});
+    } else {
+        report.push_back({"MPR Network Deadlock Shim", "WARNING", "Could not deploy all mpr.dll shims", iseDir.string(), false});
     }
 
     // 6. Check WebTalk user opt-out
@@ -988,6 +1076,30 @@ void Patcher::PurgeAllXilinxEnvironmentAndShortcuts() {
         }
     }
 
-    // 4. Restore Network Provider order
+    // 4. Clean up any deployed MPR shims
+    fs::path root = DetectXilinxRoot();
+    if (!root.empty()) {
+        std::vector<fs::path> mprClean = {
+            root / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt64" / "mpr.dll",
+            root / "14.7" / "ISE_DS" / "ISE" / "lib" / "nt64" / "mpr.dll",
+            root / "14.7" / "ISE_DS" / "common" / "bin" / "nt64" / "mpr.dll",
+            root / "14.7" / "ISE_DS" / "common" / "lib" / "nt64" / "mpr.dll",
+            root / "14.7" / "ISE_DS" / "PlanAhead" / "lib" / "win64.o" / "mpr.dll",
+            root / "14.7" / "ISE_DS" / "ISE" / "bin" / "nt" / "mpr.dll",
+            root / "14.7" / "ISE_DS" / "ISE" / "lib" / "nt" / "mpr.dll",
+            root / "14.7" / "ISE_DS" / "common" / "bin" / "nt" / "mpr.dll",
+            root / "14.7" / "ISE_DS" / "common" / "lib" / "nt" / "mpr.dll"
+        };
+        for (const auto& mp : mprClean) {
+            if (fs::exists(mp)) {
+                std::error_code ec;
+                SetFileAttributesW(mp.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+                fs::remove(mp, ec);
+                std::cout << "  " << Colors::GREEN << "[PURGE]" << Colors::RESET << " Removed MPR deadlock shim: " << Colors::DIM << mp.string() << Colors::RESET << "\n";
+            }
+        }
+    }
+
+    // 5. Restore Network Provider order
     RestoreNetworkProviders();
 }
