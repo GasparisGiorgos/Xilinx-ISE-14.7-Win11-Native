@@ -56,5 +56,13 @@ std::vector<std::pair<std::string, bool>> DriverManager::InstallXilinxDrivers(co
         results.push_back({"Xilinx install_drivers.exe Helper", true});
     }
 
+    fs::path digilentDir = fs::exists(commonNt64 / "digilent" / "install_digilent.exe") ? (commonNt64 / "digilent") : (iseNt64 / "digilent");
+    fs::path digilentExe = digilentDir / "install_digilent.exe";
+    if (fs::exists(digilentExe)) {
+        std::wstring cmdDig = L"\"" + digilentExe.wstring() + L"\" /S >nul 2>&1";
+        int rDig = _wsystem(cmdDig.c_str());
+        results.push_back({"Digilent Adept USB JTAG Cable Driver", (rDig == 0)});
+    }
+
     return results;
 }
